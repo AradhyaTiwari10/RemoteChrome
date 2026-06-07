@@ -1,0 +1,2 @@
+# Reserved for global TypeScript interfaces and custom Express definitions
+export {};

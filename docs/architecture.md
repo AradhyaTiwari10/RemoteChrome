@@ -94,3 +94,43 @@ BrowserPilot follows a monorepo multi-service architecture layout:
 * **Network Isolation:** Browser containers will run inside a locked-down custom bridge network with no incoming traffic except through the authorized backend proxy.
 * **Filesystem Isolation:** The container's root partition is read-only, with temporary memory-backed storage (`tmpfs`) mounted for browser profiles, ensuring no browser state persists once closed.
 * **Resource Limits:** Docker Compose/Docker run commands enforce hard CPU limits (e.g., maximum 1 core) and memory caps (e.g., maximum 512MB) per instance to prevent denial of service (DoS) attacks on the host.
+
+---
+
+## 6. Architectural Justification & Advantages
+
+### The Chosen Flow
+```
+Frontend Client  ──>  Backend Orchestrator  ──>  Browser Sandbox Container  ──>  Chromium
+```
+
+This multi-tier approach separates client-side visualization, state orchestration, container execution, and raw browser processes.
+
+### Advantages
+1. **Separation of Concerns:** 
+   * The **Frontend** does not know how containers are provisioned; it only handles rendering and event capture.
+   * The **Backend Orchestrator** manages lifecycle scheduling but does not process pixel values or compression codecs.
+   * The **Browser Sandbox Container** runs isolated and handles input injection directly in its environment.
+2. **Scalability:** 
+   * As concurrent user counts grow, the Backend Orchestrator can balance container creation across multiple docker hosts/nodes (e.g. Docker Swarm or Kubernetes clusters) without changing frontend or streaming logic.
+3. **Multi-Session Support:**
+   * Because each browser runs inside its own Docker container with strict network ports, sandboxing multiple instances for a single user or multiple users is natively supported.
+4. **Easier Debugging:**
+   * Issues in the streaming protocols (e.g., frame drops) can be isolated to the container's streaming daemon, while API router issues (e.g., auth, session limits) are checked in the Express server.
+
+---
+
+## 7. Alternatives Considered
+
+### Alternative A: Monolithic Server with Embedded Chrome
+* *Description:* Running a single Node.js server that spawns Chromium directly using Puppeteer/Playwright processes on the host.
+* *Why Rejected:* 
+  * **Zero Security Sandbox:** If a website executes a sandbox escape vulnerability, the attacker gets immediate access to the host machine running the Node server.
+  * **Resource Contention:** Multiple active Chromium processes on a single host make it difficult to set hard memory/CPU caps per session, risking host crashes.
+  * **No Multi-Tenancy:** Harder to manage cookie/session cleaning reliably at process level compared to complete container isolation.
+
+### Alternative B: Direct Peer Connection to Container (No Backend Orchestrator)
+* *Description:* Frontend directly triggers Docker API commands to spawn containers, and connects directly via socket.
+* *Why Rejected:*
+  * **Security Risk:** Requires exposing the host's raw Docker Daemon socket `/var/run/docker.sock` to the public web client, allowing any client to take full control of the host machine.
+  * **Orchestration Chaos:** No central point to enforce maximum session limits, track idle timeouts, or clean up zombie containers.

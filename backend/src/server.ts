@@ -1,6 +1,9 @@
-import express, { Request, Response, NextFunction } from "express";
+import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import loggerMiddleware from "./middleware/logger";
+import errorHandlerMiddleware from "./middleware/errorHandler";
+import healthRouter from "./routes/health";
 
 // Load environment variables
 dotenv.config();
@@ -16,34 +19,13 @@ app.use(cors());
 app.use(express.json());
 
 // Custom Logger Middleware
-app.use((req: Request, _res: Response, next: NextFunction) => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${req.method} ${req.path}`);
-  next();
-});
+app.use(loggerMiddleware);
 
-// Route: Health Check
-app.get("/health", (_req: Request, res: Response) => {
-  res.status(200).json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    environment: NODE_ENV
-  });
-});
+// Route Handlers
+app.use(healthRouter);
 
 // Middleware: Global Error Handling Structure
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  const timestamp = new Date().toISOString();
-  console.error(`[${timestamp}] ERROR: ${err.message}`);
-  
-  const responsePayload = {
-    error: "Internal Server Error",
-    message: NODE_ENV === "development" ? err.message : "An unexpected error occurred",
-    ...(NODE_ENV === "development" && { stack: err.stack })
-  };
-
-  res.status(500).json(responsePayload);
-});
+app.use(errorHandlerMiddleware);
 
 // Start Server
 const server = app.listen(PORT, () => {
