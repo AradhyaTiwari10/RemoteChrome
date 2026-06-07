@@ -38,12 +38,11 @@ export default function Home() {
     const xRelative = e.clientX - rect.left;
     const yRelative = e.clientY - rect.top;
 
-    // Scale coordinates to target virtual 1920x1080 browser resolution
-    const x = Math.round(xRelative * (1920 / rect.width));
-    const y = Math.round(yRelative * (1080 / rect.height));
+    // Scale coordinates to target virtual 1280x720 browser resolution
+    const x = Math.round(xRelative * (1280 / rect.width));
+    const y = Math.round(yRelative * (720 / rect.height));
 
-    if (x >= 0 && x <= 1920 && y >= 0 && y <= 1080) {
-      console.log(`[Frontend] Emit mouse:move: x=${x}, y=${y}`);
+    if (x >= 0 && x <= 1280 && y >= 0 && y <= 720) {
       socketRef.current.emit("mouse:move", { x, y });
     }
   };
@@ -58,12 +57,12 @@ export default function Home() {
     const xRelative = e.clientX - rect.left;
     const yRelative = e.clientY - rect.top;
 
-    // Scale coordinates to target virtual 1920x1080 browser resolution
-    const x = Math.round(xRelative * (1920 / rect.width));
-    const y = Math.round(yRelative * (1080 / rect.height));
+    // Scale coordinates to target virtual 1280x720 browser resolution
+    const x = Math.round(xRelative * (1280 / rect.width));
+    const y = Math.round(yRelative * (720 / rect.height));
 
-    if (x >= 0 && x <= 1920 && y >= 0 && y <= 1080) {
-      console.log(`[Frontend] Emit mouse:click: x=${x}, y=${y} (scaled from relative ${Math.round(xRelative)}x${Math.round(yRelative)} on bounding rect ${Math.round(rect.width)}x${Math.round(rect.height)})`);
+    if (x >= 0 && x <= 1280 && y >= 0 && y <= 720) {
+      console.log(`[Frontend] Emit mouse:click: x=${x}, y=${y} (scaled from relative ${Math.round(xRelative)}x${Math.round(yRelative)} on rect ${Math.round(rect.width)}x${Math.round(rect.height)})`);
       socketRef.current.emit("mouse:click", { x, y });
     }
   };
@@ -306,11 +305,11 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1.5">Width (Viewport)</label>
-                  <input type="text" value="1920px" disabled className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500 font-mono focus:outline-none cursor-not-allowed" />
+                  <input type="text" value="1280px" disabled className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500 font-mono focus:outline-none cursor-not-allowed" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1.5">Height (Viewport)</label>
-                  <input type="text" value="1080px" disabled className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500 font-mono focus:outline-none cursor-not-allowed" />
+                  <input type="text" value="720px" disabled className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500 font-mono focus:outline-none cursor-not-allowed" />
                 </div>
               </div>
 
