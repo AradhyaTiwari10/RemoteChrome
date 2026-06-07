@@ -1,55 +1,55 @@
 version: '3.8'
 
 services:
-  # BrowserPilot Frontend Dashboard
-  # Epic 1: Scaffold Next.js application
-  # Epic 2: Dockerize frontend service
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile # To be created in Epic 2
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:5001
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    networks:
-      - browserpilot-network
-
   # BrowserPilot Backend Orchestrator
-  # Epic 1: Scaffold Express + TS application
-  # Epic 2: Dockerize backend service
   backend:
+    container_name: browserpilot-backend
     build:
       context: ./backend
-      dockerfile: Dockerfile # To be created in Epic 2
+      dockerfile: Dockerfile
     ports:
       - "5001:5001"
     environment:
       - PORT=5001
-      # Future: Configure browser container management connection strings
-      # - BROWSER_SERVICE_URL=http://browser:3000
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
+      - NODE_ENV=production
+    restart: unless-stopped
     networks:
-      - browserpilot-network
+      - browserpilot-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:5001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
-  # =========================================================================
-  # FUTURE SERVICES (To be added in Epics 3, 4, and 5)
-  # =========================================================================
-  
-  # 1. browser (Chromium container running inside isolation)
-  #    - To be added in Epic 3: Browser Container
-  #    - Will run a headless or headful Chromium instance with a virtual framebuffer (xvfb).
-  #    - Will expose WebRTC / websocket streaming ports.
-  #
-  # 2. playwright-runner (Automated controller)
-  #    - To be added in Epic 4: Backend Orchestration / Playwright
-  #    - Service that connects to the browser container to drive navigation, forms, and scrape actions.
+  # BrowserPilot Frontend Dashboard
+  frontend:
+    container_name: browserpilot-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:5001
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:5001
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - browserpilot-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
 networks:
-  browserpilot-network:
+  browserpilot-net:
+    name: browserpilot-net
     driver: bridge
