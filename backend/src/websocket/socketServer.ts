@@ -42,10 +42,12 @@ export const initSocketServer = (httpServer: HttpServer): Server => {
     // Mouse movement event
     socket.on("mouse:move", async (data: any) => {
       if (!activeSessionId) return;
+      console.log(`[Socket] Received mouse:move for session ${activeSessionId}:`, data);
       try {
         const validated = controlService.validatePayload({ type: "mouse:move", ...data });
         await controlService.dispatchControl(activeSessionId, validated);
       } catch (err: any) {
+        console.error(`[Socket] Error routing mouse:move for session ${activeSessionId}:`, err.message);
         socket.emit("control:error", { message: err.message });
       }
     });
@@ -53,10 +55,12 @@ export const initSocketServer = (httpServer: HttpServer): Server => {
     // Mouse click event
     socket.on("mouse:click", async (data: any) => {
       if (!activeSessionId) return;
+      console.log(`[Socket] Received mouse:click for session ${activeSessionId}:`, data);
       try {
         const validated = controlService.validatePayload({ type: "mouse:click", ...data });
         await controlService.dispatchControl(activeSessionId, validated);
       } catch (err: any) {
+        console.error(`[Socket] Error routing mouse:click for session ${activeSessionId}:`, err.message);
         socket.emit("control:error", { message: err.message });
       }
     });
@@ -64,10 +68,12 @@ export const initSocketServer = (httpServer: HttpServer): Server => {
     // Keyboard type event
     socket.on("keyboard:type", async (data: any) => {
       if (!activeSessionId) return;
+      console.log(`[Socket] Received keyboard:type for session ${activeSessionId}:`, data);
       try {
         const validated = controlService.validatePayload({ type: "keyboard:type", ...data });
         await controlService.dispatchControl(activeSessionId, validated);
       } catch (err: any) {
+        console.error(`[Socket] Error routing keyboard:type for session ${activeSessionId}:`, err.message);
         socket.emit("control:error", { message: err.message });
       }
     });
@@ -75,10 +81,12 @@ export const initSocketServer = (httpServer: HttpServer): Server => {
     // Mouse wheel (scroll) event
     socket.on("mouse:wheel", async (data: any) => {
       if (!activeSessionId) return;
+      console.log(`[Socket] Received mouse:wheel for session ${activeSessionId}:`, data);
       try {
         const validated = controlService.validatePayload({ type: "mouse:wheel", ...data });
         await controlService.dispatchControl(activeSessionId, validated);
       } catch (err: any) {
+        console.error(`[Socket] Error routing mouse:wheel for session ${activeSessionId}:`, err.message);
         socket.emit("control:error", { message: err.message });
       }
     });

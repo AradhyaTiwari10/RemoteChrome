@@ -18,6 +18,7 @@ export default function Home() {
   const frameCountRef = useRef<number>(0);
   const fpsIntervalRef = useRef<any>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const lastMoveEmitRef = useRef<number>(0);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLImageElement>) => {
@@ -37,12 +38,16 @@ export default function Home() {
     const y = Math.round(yRelative * (1080 / rect.height));
 
     if (x >= 0 && x <= 1920 && y >= 0 && y <= 1080) {
+      console.log(`[Frontend] Emit mouse:move: x=${x}, y=${y}`);
       socketRef.current.emit("mouse:move", { x, y });
     }
   };
 
   const handleMouseClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (browserState !== "online" || !socketRef.current || !imgRef.current) return;
+
+    // Focus the viewport container explicitly so keyboard events are captured
+    viewportRef.current?.focus();
 
     const rect = imgRef.current.getBoundingClientRect();
     const xRelative = e.clientX - rect.left;
@@ -53,6 +58,7 @@ export default function Home() {
     const y = Math.round(yRelative * (1080 / rect.height));
 
     if (x >= 0 && x <= 1920 && y >= 0 && y <= 1080) {
+      console.log(`[Frontend] Emit mouse:click: x=${x}, y=${y} (scaled from relative ${Math.round(xRelative)}x${Math.round(yRelative)} on bounding rect ${Math.round(rect.width)}x${Math.round(rect.height)})`);
       socketRef.current.emit("mouse:click", { x, y });
     }
   };
@@ -63,10 +69,10 @@ export default function Home() {
     // Prevent default local scroll behavior
     e.preventDefault();
 
-    socketRef.current.emit("mouse:wheel", {
-      deltaX: Math.round(e.deltaX),
-      deltaY: Math.round(e.deltaY)
-    });
+    const deltaX = Math.round(e.deltaX);
+    const deltaY = Math.round(e.deltaY);
+    console.log(`[Frontend] Emit mouse:wheel: deltaX=${deltaX}, deltaY=${deltaY}`);
+    socketRef.current.emit("mouse:wheel", { deltaX, deltaY });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -83,6 +89,7 @@ export default function Home() {
       keyText = " ";
     }
 
+    console.log(`[Frontend] Emit keyboard:type: text=${keyText}`);
     socketRef.current.emit("keyboard:type", { text: keyText });
   };
 
@@ -470,6 +477,7 @@ export default function Home() {
                   {/* Browser Live Viewport */}
                   {imageSrc ? (
                     <div 
+                      ref={viewportRef}
                       tabIndex={0}
                       onFocus={() => setIsFocused(true)}
                       onBlur={() => setIsFocused(false)}

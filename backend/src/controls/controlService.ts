@@ -80,11 +80,15 @@ export class ControlService {
       this.lastMouseMove.set(sessionId, now);
     }
 
+    console.log(`[ControlService] Dispatching event '${payload.type}' to session ${sessionId}:`, payload);
+
     return new Promise<void>((resolve, reject) => {
       const containerName = `browserpilot-session-${sessionId}`;
       const url = `http://${containerName}:3001/control`;
 
       const requestBody = JSON.stringify(payload);
+
+      console.log(`[ControlService] Sending HTTP POST to ${url} (size: ${Buffer.byteLength(requestBody)} bytes)`);
 
       const req = http.request(
         url,
@@ -102,6 +106,7 @@ export class ControlService {
             resData += chunk;
           });
           res.on("end", () => {
+            console.log(`[ControlService] HTTP response from container: status=${res.statusCode}`);
             if (res.statusCode === 200) {
               resolve();
             } else {
@@ -110,6 +115,7 @@ export class ControlService {
                 const parsed = JSON.parse(resData);
                 errMsg = parsed.error || errMsg;
               } catch (e) {}
+              console.error(`[ControlService] Container control endpoint failed: ${errMsg}`);
               reject(new Error(`Container control failure (HTTP ${res.statusCode}): ${errMsg}`));
             }
           });
@@ -117,10 +123,12 @@ export class ControlService {
       );
 
       req.on("error", (err) => {
+        console.error(`[ControlService] HTTP request error targeting container:`, err.message);
         reject(new Error(`Failed to contact browser container control server: ${err.message}`));
       });
 
       req.on("timeout", () => {
+        console.error(`[ControlService] HTTP request timed out targeting container`);
         req.destroy();
         reject(new Error("Container control server request timed out"));
       });

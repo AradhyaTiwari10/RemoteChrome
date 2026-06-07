@@ -60,11 +60,24 @@ if (!TARGET_URL) {
         body += chunk;
       });
       req.on("end", async () => {
+        let action;
         try {
-          const action = JSON.parse(body);
+          action = JSON.parse(body);
           if (!action.type) {
             throw new Error("Missing action type");
           }
+
+          console.log(JSON.stringify({
+            level: "info",
+            message: `[Browser] Received control endpoint request: ${action.type}`,
+            payload: action
+          }));
+
+          console.log(JSON.stringify({
+            level: "info",
+            message: `[Browser] Injecting Playwright action: ${action.type}`,
+            actionType: action.type
+          }));
 
           switch (action.type) {
             case "mouse:move":
@@ -84,10 +97,22 @@ if (!TARGET_URL) {
                 throw new Error("Invalid keyboard input");
               }
               const specialKeys = ["Enter", "Backspace", "Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+              const modifierKeys = ["Shift", "Control", "Alt", "Meta", "CapsLock"];
+              
               if (specialKeys.includes(action.text)) {
                 await page.keyboard.press(action.text);
-              } else {
+              } else if (modifierKeys.includes(action.text)) {
+                console.log(JSON.stringify({
+                  level: "info",
+                  message: `[Browser] Ignored modifier key: ${action.text}`
+                }));
+              } else if (action.text.length === 1) {
                 await page.keyboard.type(action.text);
+              } else {
+                console.log(JSON.stringify({
+                  level: "info",
+                  message: `[Browser] Ignored non-printable/complex key: ${action.text}`
+                }));
               }
               break;
             case "mouse:wheel":
@@ -100,12 +125,17 @@ if (!TARGET_URL) {
               throw new Error(`Unsupported action type: ${action.type}`);
           }
 
+          console.log(JSON.stringify({
+            level: "info",
+            message: `[Browser] Playwright action executed successfully: ${action.type}`
+          }));
+
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ success: true }));
         } catch (err) {
           console.error(JSON.stringify({
             level: "error",
-            message: "[Browser] Action execution failed",
+            message: `[Browser] Action execution failed${action ? ` for ${action.type}` : ""}`,
             error: err.message
           }));
           res.writeHead(400, { "Content-Type": "application/json" });
