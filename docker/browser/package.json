@@ -1,0 +1,12 @@
+{
+  "name": "browser-agent",
+  "version": "0.1.0",
+  "description": "Browser Agent proof-of-concept for BrowserPilot",
+  "main": "browser.js",
+  "scripts": {
+    "start": "node browser.js"
+  },
+  "dependencies": {
+    "playwright-core": "^1.45.0"
+  }
+}

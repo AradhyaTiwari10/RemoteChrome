@@ -49,6 +49,18 @@ services:
       retries: 3
       start_period: 15s
 
+  # BrowserPilot Isolated Browser Sandbox Container
+  browser:
+    container_name: browserpilot-browser
+    build:
+      context: ./docker/browser
+      dockerfile: Dockerfile
+    volumes:
+      - ./artifacts/screenshots:/screenshots
+    restart: "no"
+    networks:
+      - browserpilot-net
+
 networks:
   browserpilot-net:
     name: browserpilot-net

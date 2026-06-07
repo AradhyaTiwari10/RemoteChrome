@@ -134,3 +134,49 @@ This multi-tier approach separates client-side visualization, state orchestratio
 * *Why Rejected:*
   * **Security Risk:** Requires exposing the host's raw Docker Daemon socket `/var/run/docker.sock` to the public web client, allowing any client to take full control of the host machine.
   * **Orchestration Chaos:** No central point to enforce maximum session limits, track idle timeouts, or clean up zombie containers.
+
+---
+
+## 8. Browser Agent Container (Proof-of-Concept)
+
+Introduced in Milestone 3, the Browser Agent Container serves as a minimal, lightweight prototype demonstrating isolated headless browser execution inside Docker.
+
+### A. Responsibilities
+* **Process Isolation:** Encapsulates the Chromium browser engine entirely within a secure Docker container, safeguarding host processes.
+* **Task Automation:** Orchestrates programmatic page interactions (navigation, wait-states, page loading) via Playwright-core.
+* **Artifact Capture:** Generates visual output files (screenshots) and writes them back to persistent shared volumes.
+
+### B. Container Lifecycle
+
+```
+[docker compose run browser]
+         │
+         ▼
+[Launch Headless Chromium]
+         │
+         ▼
+[Navigate & Capture Screenshot]
+         │
+         ▼
+[Save to Mounted Volume /screenshots]
+         │
+         ▼
+[Exit Successfully (Status 0)]
+```
+
+The container is designed as a short-lived task (`restart: "no"`) that runs, finishes its automated navigation, outputs its screenshot artifact, and terminates cleanly.
+
+### C. Screenshot Workflow
+1. **Instantiation:** Container starts and executes the NodeJS script `browser.js`.
+2. **Launch:** Playwright hooks into the system Chromium package installed natively in Alpine (`/usr/bin/chromium-browser`).
+3. **Execution:** Chromium navigates headlessly to `https://www.google.com` and awaits full page load.
+4. **Export:** Page screenshot is captured and saved directly to the `/screenshots/google-homepage.png` directory inside the container.
+5. **Persistence:** The path maps to the host directory `./artifacts/screenshots` via a Docker bind mount volume, persisting the image on the host filesystem.
+6. **Teardown:** Browser processes close, and the script exits with status `0`.
+
+### D. Future Evolution Toward Streaming
+While this milestone uses a short-lived, headless container, future iterations will evolve this service into a persistent runtime:
+* **Interactive Mode:** The container will be updated to launch Chromium in headful mode using a virtual frame buffer (`Xvfb`).
+* **Active Streaming:** A websocket or WebRTC streamer agent will run inside the container to continuously capture frame buffer updates from display `:99` and stream them as compressed video feeds to the Next.js frontend.
+* **Control plane:** A websocket control socket will accept click/keystroke commands from the client and inject them into Chromium using coordinates.
+* **Stateful management:** The Express orchestrator will dynamically manage the lifecycle of these containers (booting, port assignment, health checks, teardowns) on demand.
