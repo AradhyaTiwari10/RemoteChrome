@@ -37,7 +37,7 @@ if (!TARGET_URL) {
   });
 
   const context = await browser.newContext({
-    viewport: { width: 1280, height: 720 }
+    viewport: { width: 1920, height: 1080 }
   });
   const page = await context.newPage();
 
@@ -52,10 +52,90 @@ if (!TARGET_URL) {
   let keepAlive = true;
   const tempScreenshotPath = `/screenshots/${SESSION_ID}.jpg`;
 
+  // Start HTTP control server on port 3001 inside the container
+  const controlServer = http.createServer(async (req, res) => {
+    if (req.method === "POST" && req.url === "/control") {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk;
+      });
+      req.on("end", async () => {
+        try {
+          const action = JSON.parse(body);
+          if (!action.type) {
+            throw new Error("Missing action type");
+          }
+
+          switch (action.type) {
+            case "mouse:move":
+              if (typeof action.x !== "number" || typeof action.y !== "number") {
+                throw new Error("Invalid mouse coordinates");
+              }
+              await page.mouse.move(action.x, action.y);
+              break;
+            case "mouse:click":
+              if (typeof action.x !== "number" || typeof action.y !== "number") {
+                throw new Error("Invalid mouse coordinates");
+              }
+              await page.mouse.click(action.x, action.y);
+              break;
+            case "keyboard:type":
+              if (typeof action.text !== "string") {
+                throw new Error("Invalid keyboard input");
+              }
+              const specialKeys = ["Enter", "Backspace", "Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+              if (specialKeys.includes(action.text)) {
+                await page.keyboard.press(action.text);
+              } else {
+                await page.keyboard.type(action.text);
+              }
+              break;
+            case "mouse:wheel":
+              if (typeof action.deltaX !== "number" || typeof action.deltaY !== "number") {
+                throw new Error("Invalid scroll deltas");
+              }
+              await page.mouse.wheel(action.deltaX, action.deltaY);
+              break;
+            default:
+              throw new Error(`Unsupported action type: ${action.type}`);
+          }
+
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: true }));
+        } catch (err) {
+          console.error(JSON.stringify({
+            level: "error",
+            message: "[Browser] Action execution failed",
+            error: err.message
+          }));
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+      });
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+
+  controlServer.listen(3001, "0.0.0.0", () => {
+    console.log(JSON.stringify({
+      level: "info",
+      message: `[Browser] Control server listening on port 3001`
+    }));
+  });
+
   const shutdown = async () => {
     if (!keepAlive) return;
     keepAlive = false;
     console.log(JSON.stringify({ level: "info", message: "[Browser] Shutdown signal received, closing browser" }));
+    
+    try {
+      controlServer.close();
+    } catch (err) {
+      // Ignore
+    }
+    
     await browser.close();
     
     // Clean up temporary files

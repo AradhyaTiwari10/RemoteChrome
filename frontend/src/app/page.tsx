@@ -12,10 +12,79 @@ export default function Home() {
   const [fps, setFps] = useState<number>(0);
   const [rtt, setRtt] = useState<number>(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   const socketRef = useRef<Socket | null>(null);
   const frameCountRef = useRef<number>(0);
   const fpsIntervalRef = useRef<any>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const lastMoveEmitRef = useRef<number>(0);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (browserState !== "online" || !socketRef.current || !imgRef.current) return;
+    
+    // Throttle client-side mouse move events (emit max once every 50ms)
+    const now = Date.now();
+    if (now - lastMoveEmitRef.current < 50) return;
+    lastMoveEmitRef.current = now;
+
+    const rect = imgRef.current.getBoundingClientRect();
+    const xRelative = e.clientX - rect.left;
+    const yRelative = e.clientY - rect.top;
+
+    // Scale coordinates to target virtual 1920x1080 browser resolution
+    const x = Math.round(xRelative * (1920 / rect.width));
+    const y = Math.round(yRelative * (1080 / rect.height));
+
+    if (x >= 0 && x <= 1920 && y >= 0 && y <= 1080) {
+      socketRef.current.emit("mouse:move", { x, y });
+    }
+  };
+
+  const handleMouseClick = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (browserState !== "online" || !socketRef.current || !imgRef.current) return;
+
+    const rect = imgRef.current.getBoundingClientRect();
+    const xRelative = e.clientX - rect.left;
+    const yRelative = e.clientY - rect.top;
+
+    // Scale coordinates to target virtual 1920x1080 browser resolution
+    const x = Math.round(xRelative * (1920 / rect.width));
+    const y = Math.round(yRelative * (1080 / rect.height));
+
+    if (x >= 0 && x <= 1920 && y >= 0 && y <= 1080) {
+      socketRef.current.emit("mouse:click", { x, y });
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLImageElement>) => {
+    if (browserState !== "online" || !socketRef.current) return;
+    
+    // Prevent default local scroll behavior
+    e.preventDefault();
+
+    socketRef.current.emit("mouse:wheel", {
+      deltaX: Math.round(e.deltaX),
+      deltaY: Math.round(e.deltaY)
+    });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (browserState !== "online" || !socketRef.current) return;
+
+    // Prevent page scrolling on navigation keys
+    const keysToPrevent = ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Backspace", "Tab"];
+    if (keysToPrevent.includes(e.key) || e.code === "Space") {
+      e.preventDefault();
+    }
+
+    let keyText = e.key;
+    if (e.key === " ") {
+      keyText = " ";
+    }
+
+    socketRef.current.emit("keyboard:type", { text: keyText });
+  };
 
   useEffect(() => {
     // Cleanup sockets and intervals when component unmounts
@@ -148,7 +217,7 @@ export default function Home() {
               Environment: Dev
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-              Milestone 5 — Real-Time Streaming
+              Milestone 6 — Interactive Controls
             </span>
           </div>
         </div>
@@ -169,7 +238,7 @@ export default function Home() {
             <div className="border-t border-slate-800/80 pt-4 flex flex-col gap-2">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-500">Milestone Status:</span>
-                <span className="text-indigo-400 font-medium font-mono">Frame Streaming Active</span>
+                <span className="text-indigo-400 font-medium font-mono">Interactive Control Active</span>
               </div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-500">Virtualization Mode:</span>
@@ -208,11 +277,11 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1.5">Width (Viewport)</label>
-                  <input type="text" value="1280px" disabled className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500 font-mono focus:outline-none cursor-not-allowed" />
+                  <input type="text" value="1920px" disabled className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500 font-mono focus:outline-none cursor-not-allowed" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1.5">Height (Viewport)</label>
-                  <input type="text" value="720px" disabled className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500 font-mono focus:outline-none cursor-not-allowed" />
+                  <input type="text" value="1080px" disabled className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500 font-mono focus:outline-none cursor-not-allowed" />
                 </div>
               </div>
 
@@ -386,6 +455,12 @@ export default function Home() {
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-500 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                      {isFocused ? (
+                        <span className="text-indigo-400 animate-pulse font-sans">● Interactive Input Active</span>
+                      ) : (
+                        <span className="text-slate-500 font-sans">⌨️ Click viewport to type</span>
+                      )}
+                      <span className="text-slate-700">|</span>
                       <span>FPS: {fps}</span>
                       <span className="text-slate-700">|</span>
                       <span>RTT: {rtt}ms</span>
@@ -394,11 +469,22 @@ export default function Home() {
 
                   {/* Browser Live Viewport */}
                   {imageSrc ? (
-                    <div className="flex-1 bg-slate-950 flex items-center justify-center overflow-hidden relative">
+                    <div 
+                      tabIndex={0}
+                      onFocus={() => setIsFocused(true)}
+                      onBlur={() => setIsFocused(false)}
+                      onKeyDown={handleKeyDown}
+                      className="flex-1 bg-slate-950 flex items-center justify-center overflow-hidden relative focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                    >
                       <img 
+                        ref={imgRef}
                         src={imageSrc} 
-                        className="max-w-full max-h-full object-contain pointer-events-none" 
+                        className="max-w-full max-h-full object-contain cursor-crosshair" 
                         alt="Live viewport stream" 
+                        onMouseMove={handleMouseMove}
+                        onClick={handleMouseClick}
+                        onWheel={handleWheel}
+                        draggable={false}
                       />
                     </div>
                   ) : (

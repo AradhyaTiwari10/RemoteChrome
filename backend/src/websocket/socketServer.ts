@@ -1,6 +1,7 @@
 import { Server, Socket } from "socket.io";
 import { Server as HttpServer } from "http";
 import { frameService, FramePayload } from "../frames/frameService";
+import { controlService } from "../controls/controlService";
 
 export const initSocketServer = (httpServer: HttpServer): Server => {
   const io = new Server(httpServer, {
@@ -36,6 +37,50 @@ export const initSocketServer = (httpServer: HttpServer): Server => {
 
       // 3. Register callback in FrameService
       frameService.subscribe(sessionId, frameListener);
+    });
+
+    // Mouse movement event
+    socket.on("mouse:move", async (data: any) => {
+      if (!activeSessionId) return;
+      try {
+        const validated = controlService.validatePayload({ type: "mouse:move", ...data });
+        await controlService.dispatchControl(activeSessionId, validated);
+      } catch (err: any) {
+        socket.emit("control:error", { message: err.message });
+      }
+    });
+
+    // Mouse click event
+    socket.on("mouse:click", async (data: any) => {
+      if (!activeSessionId) return;
+      try {
+        const validated = controlService.validatePayload({ type: "mouse:click", ...data });
+        await controlService.dispatchControl(activeSessionId, validated);
+      } catch (err: any) {
+        socket.emit("control:error", { message: err.message });
+      }
+    });
+
+    // Keyboard type event
+    socket.on("keyboard:type", async (data: any) => {
+      if (!activeSessionId) return;
+      try {
+        const validated = controlService.validatePayload({ type: "keyboard:type", ...data });
+        await controlService.dispatchControl(activeSessionId, validated);
+      } catch (err: any) {
+        socket.emit("control:error", { message: err.message });
+      }
+    });
+
+    // Mouse wheel (scroll) event
+    socket.on("mouse:wheel", async (data: any) => {
+      if (!activeSessionId) return;
+      try {
+        const validated = controlService.validatePayload({ type: "mouse:wheel", ...data });
+        await controlService.dispatchControl(activeSessionId, validated);
+      } catch (err: any) {
+        socket.emit("control:error", { message: err.message });
+      }
     });
 
     // Handle client disconnect
