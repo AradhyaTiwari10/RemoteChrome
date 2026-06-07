@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # BrowserPilot Frontend Dashboard
+  # Epic 1: Scaffold Next.js application
+  # Epic 2: Dockerize frontend service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile # To be created in Epic 2
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5001
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - browserpilot-network
+
+  # BrowserPilot Backend Orchestrator
+  # Epic 1: Scaffold Express + TS application
+  # Epic 2: Dockerize backend service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile # To be created in Epic 2
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      # Future: Configure browser container management connection strings
+      # - BROWSER_SERVICE_URL=http://browser:3000
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - browserpilot-network
+
+  # =========================================================================
+  # FUTURE SERVICES (To be added in Epics 3, 4, and 5)
+  # =========================================================================
+  
+  # 1. browser (Chromium container running inside isolation)
+  #    - To be added in Epic 3: Browser Container
+  #    - Will run a headless or headful Chromium instance with a virtual framebuffer (xvfb).
+  #    - Will expose WebRTC / websocket streaming ports.
+  #
+  # 2. playwright-runner (Automated controller)
+  #    - To be added in Epic 4: Backend Orchestration / Playwright
+  #    - Service that connects to the browser container to drive navigation, forms, and scrape actions.
+
+networks:
+  browserpilot-network:
+    driver: bridge
