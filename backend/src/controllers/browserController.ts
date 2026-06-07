@@ -105,13 +105,22 @@ export const receiveFrame = (req: Request, res: Response): void => {
       return;
     }
 
+    // Diagnostic: log frame size and subscriber count (sampled every 50 frames)
+    const subscriberCount = frameService.getSubscriberCount(sessionId);
+    const frameSizeKB = Math.round(image.length / 1024);
+    if (frameSizeKB < 2) {
+      console.warn(
+        `[Frame] Suspiciously small frame received for session ${sessionId}: ${frameSizeKB}KB (possible blank/crash page)`
+      );
+    }
+
     frameService.emitFrameUpdate({
       sessionId,
       timestamp: timestamp || Date.now(),
       image
     });
 
-    res.status(200).json({ success: true });
+    res.status(200).json({ success: true, subscriberCount });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

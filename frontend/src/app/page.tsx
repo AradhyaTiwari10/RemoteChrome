@@ -13,10 +13,15 @@ export default function Home() {
   const [rtt, setRtt] = useState<number>(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [streamStalled, setStreamStalled] = useState(false);
+  const [targetUrl, setTargetUrl] = useState("https://duckduckgo.com");
+  const [totalFrames, setTotalFrames] = useState(0);
 
   const socketRef = useRef<Socket | null>(null);
   const frameCountRef = useRef<number>(0);
+  const totalFramesRef = useRef<number>(0);
   const fpsIntervalRef = useRef<any>(null);
+  const stallTimerRef = useRef<any>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const lastMoveEmitRef = useRef<number>(0);
@@ -96,14 +101,21 @@ export default function Home() {
   useEffect(() => {
     // Cleanup sockets and intervals when component unmounts
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-      if (fpsIntervalRef.current) {
-        clearInterval(fpsIntervalRef.current);
-      }
+      if (socketRef.current) socketRef.current.disconnect();
+      if (fpsIntervalRef.current) clearInterval(fpsIntervalRef.current);
+      if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
     };
   }, []);
+
+  // Reset stall timer whenever a frame arrives
+  const resetStallTimer = () => {
+    setStreamStalled(false);
+    if (stallTimerRef.current) clearTimeout(stallTimerRef.current);
+    stallTimerRef.current = setTimeout(() => {
+      setStreamStalled(true);
+      console.warn("[Frontend] Stream stalled — no frame received in 3 seconds");
+    }, 3000);
+  };
 
   const handleProvision = async () => {
     setBrowserState("provisioning");
@@ -111,13 +123,16 @@ export default function Home() {
     setImageSrc(null);
     setFps(0);
     setRtt(0);
+    setTotalFrames(0);
+    setStreamStalled(false);
+    totalFramesRef.current = 0;
 
     try {
-      // 1. Request container startup
+      // 1. Request container startup with the configured target URL
       const res = await fetch(`${API_BASE}/api/browser/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetUrl: "https://www.google.com" })
+        body: JSON.stringify({ targetUrl })
       });
 
       if (!res.ok) {
@@ -130,34 +145,45 @@ export default function Home() {
       setBrowserState("online");
 
       // 2. Open Socket.io Client
-      const socket = io(API_BASE);
+      const socket = io(API_BASE, {
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 10
+      });
       socketRef.current = socket;
 
       socket.on("connect", () => {
-        console.log(`[Socket] Connected to server, joining session: ${session.sessionId}`);
+        console.log(`[Socket] Connected, joining session: ${session.sessionId}`);
+        socket.emit("session:join", session.sessionId);
+        resetStallTimer();
+      });
+
+      socket.on("reconnect", (attemptNumber: number) => {
+        console.log(`[Socket] Reconnected (attempt #${attemptNumber}), rejoining session`);
         socket.emit("session:join", session.sessionId);
       });
 
       socket.on("frame:update", (payload: { sessionId: string; timestamp: number; image: string }) => {
-        // Set image source
         setImageSrc(`data:image/jpeg;base64,${payload.image}`);
-        
-        // Calculate latency / RTT
         const latency = Date.now() - payload.timestamp;
         setRtt(latency > 0 ? latency : 0);
-        
-        // Count frame for FPS calculations
         frameCountRef.current += 1;
+        totalFramesRef.current += 1;
+        resetStallTimer();
       });
 
-      socket.on("disconnect", () => {
-        console.log("[Socket] Disconnected from server");
+      socket.on("control:error", (data: { message: string }) => {
+        console.warn("[Socket] Control error from server:", data.message);
       });
 
-      // 3. Set FPS counting timer
+      socket.on("disconnect", (reason: string) => {
+        console.warn(`[Socket] Disconnected from server (reason=${reason})`);
+      });
+
+      // 3. FPS counting timer (also updates total frame counter display)
       fpsIntervalRef.current = setInterval(() => {
         setFps(frameCountRef.current);
         frameCountRef.current = 0;
+        setTotalFrames(totalFramesRef.current);
       }, 1000);
 
     } catch (err: any) {
@@ -251,10 +277,6 @@ export default function Home() {
                 <span className="text-slate-500">Virtualization Mode:</span>
                 <span className="text-slate-300 font-medium">Headless Playwright / Docker</span>
               </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500">Socket Protocol:</span>
-                <span className="text-slate-300 font-medium">Socket.io Event Gateway</span>
-              </div>
             </div>
           </div>
 
@@ -293,8 +315,32 @@ export default function Home() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Egress Target</label>
-                <input type="text" value="https://www.google.com" disabled className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500 font-mono focus:outline-none cursor-not-allowed" />
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Egress Target URL</label>
+                <input
+                  type="text"
+                  value={targetUrl}
+                  onChange={(e) => setTargetUrl(e.target.value)}
+                  disabled={browserState !== "offline"}
+                  placeholder="https://duckduckgo.com"
+                  className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-300 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 transition disabled:text-slate-500 disabled:cursor-not-allowed"
+                />
+                {browserState === "offline" && (
+                  <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                    {["https://duckduckgo.com", "https://en.wikipedia.org", "https://news.ycombinator.com"].map((url) => (
+                      <button
+                        key={url}
+                        onClick={() => setTargetUrl(url)}
+                        className={`text-[10px] px-2 py-0.5 rounded border transition ${
+                          targetUrl === url
+                            ? "border-indigo-500/60 bg-indigo-500/10 text-indigo-400"
+                            : "border-slate-800 text-slate-500 hover:text-slate-300"
+                        }`}
+                      >
+                        {url.replace("https://", "").split("/")[0]}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-slate-850 pt-4 flex flex-col gap-3">
@@ -458,11 +504,13 @@ export default function Home() {
                       <div className="w-3 h-3 rounded-full bg-amber-500/70" />
                       <div className="w-3 h-3 rounded-full bg-emerald-500/70" />
                       <span className="font-medium text-[11px] text-slate-400 bg-slate-950 px-2.5 py-0.5 rounded border border-slate-800 ml-2">
-                        Chromium v122 (Isolated)
+                        Chromium (Isolated)
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-500 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                      {isFocused ? (
+                      {streamStalled ? (
+                        <span className="text-amber-400 animate-pulse font-sans">⚠ Stream Stalled</span>
+                      ) : isFocused ? (
                         <span className="text-indigo-400 animate-pulse font-sans">● Interactive Input Active</span>
                       ) : (
                         <span className="text-slate-500 font-sans">⌨️ Click viewport to type</span>
@@ -471,6 +519,8 @@ export default function Home() {
                       <span>FPS: {fps}</span>
                       <span className="text-slate-700">|</span>
                       <span>RTT: {rtt}ms</span>
+                      <span className="text-slate-700">|</span>
+                      <span>Frames: {totalFrames}</span>
                     </div>
                   </div>
 
@@ -494,6 +544,14 @@ export default function Home() {
                         onWheel={handleWheel}
                         draggable={false}
                       />
+                      {/* Stream stall overlay */}
+                      {streamStalled && (
+                        <div className="absolute inset-x-0 top-0 flex items-center justify-center py-1.5 bg-amber-500/15 border-b border-amber-500/30 z-10">
+                          <span className="text-amber-400 text-xs font-semibold animate-pulse">
+                            ⚠ Stream interrupted — browser may be loading a new page or resolving CAPTCHA
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="flex-1 bg-slate-950 flex flex-col justify-center items-center text-center p-8 relative">
