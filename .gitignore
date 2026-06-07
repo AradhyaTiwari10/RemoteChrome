@@ -44,3 +44,6 @@ Thumbs.db
 
 # Project-specific local journal (must not be committed)
 journal.md
+
+# Artifacts
+/artifacts/

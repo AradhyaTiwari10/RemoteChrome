@@ -1,7 +1,13 @@
 const { chromium } = require("playwright-core");
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
 
 const TARGET_URL = process.env.TARGET_URL;
 const SESSION_ID = process.env.SESSION_ID;
+const BACKEND_URL = process.env.BACKEND_URL || "http://backend:5001";
+const FRAME_RATE_MS = parseInt(process.env.FRAME_RATE_MS || "100", 10);
+const JPEG_QUALITY = parseInt(process.env.JPEG_QUALITY || "60", 10);
 
 if (!SESSION_ID) {
   console.error(JSON.stringify({ level: "error", message: "SESSION_ID environment variable is required" }));
@@ -43,14 +49,25 @@ if (!TARGET_URL) {
     message: `[Browser] Navigation complete, session ${SESSION_ID} is active and remaining alive`
   }));
 
-  // Keep the process alive and handle shutdown signals gracefully
   let keepAlive = true;
+  const tempScreenshotPath = `/screenshots/${SESSION_ID}.jpg`;
 
   const shutdown = async () => {
     if (!keepAlive) return;
     keepAlive = false;
     console.log(JSON.stringify({ level: "info", message: "[Browser] Shutdown signal received, closing browser" }));
     await browser.close();
+    
+    // Clean up temporary files
+    try {
+      if (fs.existsSync(tempScreenshotPath)) {
+        fs.unlinkSync(tempScreenshotPath);
+        console.log(JSON.stringify({ level: "info", message: `[Browser] Cleaned up temporary file: ${tempScreenshotPath}` }));
+      }
+    } catch (err) {
+      console.error(JSON.stringify({ level: "warn", message: "Failed to cleanup temporary file", error: err.message }));
+    }
+
     console.log(JSON.stringify({ level: "info", message: "[Browser] Completed" }));
     process.exit(0);
   };
@@ -58,9 +75,65 @@ if (!TARGET_URL) {
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
 
-  // Infinite wait loop to prevent exit
+  let isCapturing = false;
+
+  const captureAndPostFrame = async () => {
+    if (!keepAlive || isCapturing) return;
+    isCapturing = true;
+
+    try {
+      // 1. Capture screenshot to file (JPEG quality adjustable)
+      await page.screenshot({
+        path: tempScreenshotPath,
+        type: "jpeg",
+        quality: JPEG_QUALITY
+      });
+
+      // 2. Read file to buffer
+      const buffer = fs.readFileSync(tempScreenshotPath);
+      const base64Image = buffer.toString("base64");
+
+      // 3. POST image data to backend
+      const payload = JSON.stringify({
+        sessionId: SESSION_ID,
+        timestamp: Date.now(),
+        image: base64Image
+      });
+
+      const urlObj = new URL(`${BACKEND_URL}/api/browser/${SESSION_ID}/frame`);
+      const req = http.request(
+        {
+          hostname: urlObj.hostname,
+          port: urlObj.port || 80,
+          path: urlObj.pathname,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(payload)
+          }
+        },
+        (res) => {
+          res.resume(); // free memory
+        }
+      );
+
+      req.on("error", (err) => {
+        // Ignore connection errors (e.g. backend restarting)
+      });
+
+      req.write(payload);
+      req.end();
+    } catch (err) {
+      // Avoid spamming logs if capture fails occasionally
+    } finally {
+      isCapturing = false;
+    }
+  };
+
+  // Run the loop at 100ms interval
   while (keepAlive) {
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await captureAndPostFrame();
+    await new Promise((resolve) => setTimeout(resolve, FRAME_RATE_MS));
   }
 })().catch((err) => {
   console.error(JSON.stringify({

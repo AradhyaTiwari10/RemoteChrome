@@ -1,15 +1,20 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import { createServer } from "http";
 import loggerMiddleware from "./middleware/logger";
 import errorHandlerMiddleware from "./middleware/errorHandler";
 import healthRouter from "./routes/health";
 import browserRouter from "./routes/browser";
+import { initSocketServer } from "./websocket/socketServer";
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
+initSocketServer(httpServer);
+
 const PORT = process.env.PORT || 5001;
 const NODE_ENV = process.env.NODE_ENV || "development";
 
@@ -30,7 +35,7 @@ app.use("/api", browserRouter);
 app.use(errorHandlerMiddleware);
 
 // Start Server
-const server = app.listen(PORT, () => {
+const server = httpServer.listen(PORT, () => {
   console.log(`==================================================`);
   console.log(`🚀 BrowserPilot Backend Orchestrator Started`);
   console.log(`📍 Port: ${PORT}`);

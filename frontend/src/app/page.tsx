@@ -1,19 +1,121 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { io, Socket } from "socket.io-client";
+
+const API_BASE = "http://localhost:5001";
 
 export default function Home() {
   const [browserState, setBrowserState] = useState<"offline" | "provisioning" | "online">("offline");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [fps, setFps] = useState<number>(0);
+  const [rtt, setRtt] = useState<number>(0);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Simulated handler for interactions (since we are strictly visual scaffolds)
-  const handleProvision = () => {
+  const socketRef = useRef<Socket | null>(null);
+  const frameCountRef = useRef<number>(0);
+  const fpsIntervalRef = useRef<any>(null);
+
+  useEffect(() => {
+    // Cleanup sockets and intervals when component unmounts
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+      if (fpsIntervalRef.current) {
+        clearInterval(fpsIntervalRef.current);
+      }
+    };
+  }, []);
+
+  const handleProvision = async () => {
     setBrowserState("provisioning");
-    setTimeout(() => {
+    setErrorMsg(null);
+    setImageSrc(null);
+    setFps(0);
+    setRtt(0);
+
+    try {
+      // 1. Request container startup
+      const res = await fetch(`${API_BASE}/api/browser/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUrl: "https://www.google.com" })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to start session");
+      }
+
+      const session = await res.json();
+      setSessionId(session.sessionId);
       setBrowserState("online");
-    }, 2000);
+
+      // 2. Open Socket.io Client
+      const socket = io(API_BASE);
+      socketRef.current = socket;
+
+      socket.on("connect", () => {
+        console.log(`[Socket] Connected to server, joining session: ${session.sessionId}`);
+        socket.emit("session:join", session.sessionId);
+      });
+
+      socket.on("frame:update", (payload: { sessionId: string; timestamp: number; image: string }) => {
+        // Set image source
+        setImageSrc(`data:image/jpeg;base64,${payload.image}`);
+        
+        // Calculate latency / RTT
+        const latency = Date.now() - payload.timestamp;
+        setRtt(latency > 0 ? latency : 0);
+        
+        // Count frame for FPS calculations
+        frameCountRef.current += 1;
+      });
+
+      socket.on("disconnect", () => {
+        console.log("[Socket] Disconnected from server");
+      });
+
+      // 3. Set FPS counting timer
+      fpsIntervalRef.current = setInterval(() => {
+        setFps(frameCountRef.current);
+        frameCountRef.current = 0;
+      }, 1000);
+
+    } catch (err: any) {
+      console.error("[Start] Error: ", err);
+      setErrorMsg(err.message || "An unexpected error occurred during container startup");
+      setBrowserState("offline");
+    }
   };
 
-  const handleTerminate = () => {
+  const handleTerminate = async () => {
+    if (sessionId) {
+      try {
+        await fetch(`${API_BASE}/api/browser/${sessionId}/stop`, {
+          method: "POST"
+        });
+      } catch (err) {
+        console.error("[Stop] Error: ", err);
+      }
+    }
+
+    // Cleanup resources
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    if (fpsIntervalRef.current) {
+      clearInterval(fpsIntervalRef.current);
+      fpsIntervalRef.current = null;
+    }
+
+    setSessionId(null);
+    setImageSrc(null);
+    setFps(0);
+    setRtt(0);
     setBrowserState("offline");
   };
 
@@ -46,7 +148,7 @@ export default function Home() {
               Environment: Dev
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-              Milestone 1 — Foundation
+              Milestone 5 — Real-Time Streaming
             </span>
           </div>
         </div>
@@ -55,7 +157,7 @@ export default function Home() {
       {/* Main Workspace Dashboard */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 z-10">
         
-        {/* Left Side: Control & Scaffolding Panel (4 Cols) */}
+        {/* Left Side: Control & Panel (4 Cols) */}
         <section className="lg:col-span-4 flex flex-col gap-6">
           
           {/* Project Overview Card */}
@@ -67,20 +169,20 @@ export default function Home() {
             <div className="border-t border-slate-800/80 pt-4 flex flex-col gap-2">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-500">Milestone Status:</span>
-                <span className="text-indigo-400 font-medium font-mono">Boilerplate Scaffold</span>
+                <span className="text-indigo-400 font-medium font-mono">Frame Streaming Active</span>
               </div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-500">Virtualization Mode:</span>
-                <span className="text-slate-300 font-medium">Headless Xvfb / Docker</span>
+                <span className="text-slate-300 font-medium">Headless Playwright / Docker</span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500">Control Interface:</span>
-                <span className="text-slate-300 font-medium">WebSocket Event Forwarding</span>
+                <span className="text-slate-500">Socket Protocol:</span>
+                <span className="text-slate-300 font-medium">Socket.io Event Gateway</span>
               </div>
             </div>
           </div>
 
-          {/* Browser Profile Config Panel (Mock inputs) */}
+          {/* Configuration Panel */}
           <div className="rounded-xl border border-slate-900 bg-slate-900/40 p-6 backdrop-blur-sm shadow-xl">
             <h2 className="text-base font-bold text-slate-100 mb-4 flex items-center gap-2">
               <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -90,11 +192,16 @@ export default function Home() {
             </h2>
 
             <div className="flex flex-col gap-4">
+              {errorMsg && (
+                <div className="p-3 rounded-lg border border-red-500/20 bg-red-500/10 text-xs text-red-400 font-sans leading-relaxed">
+                  ⚠️ <strong>Startup Error:</strong> {errorMsg}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1.5">Browser Client</label>
                 <select className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition" disabled>
-                  <option>Chromium (Built-in Docker Image)</option>
-                  <option>Firefox (Unsupported in Milestone 1)</option>
+                  <option>Chromium (Playwright Sandbox)</option>
                 </select>
               </div>
 
@@ -110,8 +217,8 @@ export default function Home() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Session Egress Timeout</label>
-                <input type="text" value="15 minutes (Max)" disabled className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500 focus:outline-none cursor-not-allowed" />
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">Egress Target</label>
+                <input type="text" value="https://www.google.com" disabled className="w-full bg-slate-950/60 border border-slate-800/80 rounded-lg px-3 py-2 text-sm text-slate-500 font-mono focus:outline-none cursor-not-allowed" />
               </div>
 
               <div className="border-t border-slate-850 pt-4 flex flex-col gap-3">
@@ -161,7 +268,7 @@ export default function Home() {
         <section className="lg:col-span-8 flex flex-col">
           <div className="rounded-xl border border-slate-900 bg-slate-900/30 backdrop-blur-sm overflow-hidden flex flex-col h-full shadow-2xl">
             
-            {/* Header: Mock Browser Address & Controls */}
+            {/* Header: Address & Controls */}
             <div className="bg-slate-950 border-b border-slate-900 px-4 py-3 flex items-center gap-4">
               
               {/* Navigation Arrows */}
@@ -188,7 +295,7 @@ export default function Home() {
                 <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                <span>https://chromium.docker.internal/session/default</span>
+                <span>{sessionId ? `https://browser.internal/session/${sessionId}` : "https://browser.internal/offline"}</span>
               </div>
 
               {/* Session Status Tag */}
@@ -216,9 +323,9 @@ export default function Home() {
             </div>
 
             {/* Viewport Canvas Screen */}
-            <div className="flex-1 min-h-[420px] bg-slate-950 relative flex items-center justify-center p-8 select-none">
+            <div className="flex-1 min-h-[420px] bg-slate-950 relative flex items-center justify-center overflow-hidden select-none">
               
-              {/* Grid Overlay for Visual Premium Touch */}
+              {/* Grid Overlay */}
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.04),rgba(255,255,255,0))]" />
               <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:24px_24px] opacity-10" />
 
@@ -258,64 +365,54 @@ export default function Home() {
                   <div>
                     <h3 className="font-bold text-slate-300 text-sm">Provisioning Isolated Container</h3>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      Allocating resources and configuring Xvfb frame buffers. Expected startup time: &lt; 2s.
+                      Allocating resources and configuring browser containers. Expected startup time: &lt; 2s.
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* State 3: ONLINE / LIVE screen (Mocking a loaded page) */}
+              {/* State 3: ONLINE / LIVE screen */}
               {browserState === "online" && (
                 <div className="w-full h-full absolute inset-0 bg-slate-900 flex flex-col">
                   
-                  {/* Mock Browser Topbar */}
+                  {/* Browser Topbar */}
                   <div className="bg-slate-900 px-4 py-2 border-b border-slate-850 flex items-center justify-between text-xs text-slate-400 select-none">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-rose-500/70" />
                       <div className="w-3 h-3 rounded-full bg-amber-500/70" />
                       <div className="w-3 h-3 rounded-full bg-emerald-500/70" />
                       <span className="font-medium text-[11px] text-slate-400 bg-slate-950 px-2.5 py-0.5 rounded border border-slate-800 ml-2">
-                        Chromium v122
+                        Chromium v122 (Isolated)
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-500 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-                      <span>FPS: 24.2</span>
+                      <span>FPS: {fps}</span>
                       <span className="text-slate-700">|</span>
-                      <span>RTT: 12ms</span>
+                      <span>RTT: {rtt}ms</span>
                     </div>
                   </div>
 
-                  {/* Mock Browser Loaded Content (Mock UI representing Chromium Sandbox) */}
-                  <div className="flex-1 bg-slate-950 flex flex-col justify-center items-center text-center p-8 relative">
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 pointer-events-none" />
-                    
-                    {/* Glowing active state indicators */}
-                    <div className="w-20 h-20 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl flex items-center justify-center text-indigo-400 mb-4 shadow-xl shadow-indigo-500/5">
-                      <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  {/* Browser Live Viewport */}
+                  {imageSrc ? (
+                    <div className="flex-1 bg-slate-950 flex items-center justify-center overflow-hidden relative">
+                      <img 
+                        src={imageSrc} 
+                        className="max-w-full max-h-full object-contain pointer-events-none" 
+                        alt="Live viewport stream" 
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex-1 bg-slate-950 flex flex-col justify-center items-center text-center p-8 relative">
+                      <svg className="animate-spin h-10 w-10 text-indigo-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
+                      <h4 className="font-bold text-slate-200 text-sm tracking-tight">Awaiting Live Frame Feed...</h4>
+                      <p className="text-xs text-slate-400 max-w-sm mt-2 leading-relaxed">
+                        Initializing WebSocket room subscription. Visual frames will stream in real-time as the container updates.
+                      </p>
                     </div>
-
-                    <h4 className="font-bold text-slate-200 text-sm tracking-tight">Active Chromium Frame Stream (Mock)</h4>
-                    <p className="text-xs text-slate-400 max-w-sm mt-2 leading-relaxed">
-                      You are viewing a mock virtual screen. In Epics 5 and 6, this canvas will be hooked to a live WebSocket streaming pipeline.
-                    </p>
-
-                    <div className="mt-6 flex flex-wrap justify-center gap-3">
-                      <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-medium bg-slate-900 border border-slate-850 text-indigo-400">
-                        webrtc-streamer: disabled
-                      </span>
-                      <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-medium bg-slate-900 border border-slate-850 text-purple-400">
-                        xdotool-listener: active
-                      </span>
-                    </div>
-
-                    {/* Quick simulation helper text */}
-                    <span className="absolute bottom-4 text-[10px] text-slate-600">
-                      Press &quot;Terminate Sandbox Session&quot; on the left panel to close the session.
-                    </span>
-
-                  </div>
+                  )}
 
                 </div>
               )}

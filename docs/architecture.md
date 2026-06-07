@@ -231,7 +231,51 @@ Unlike Milestone 3 where the container exited after a screenshot, the container 
 * The orchestrator container is run as `user: root` to possess sufficient file permission privileges to write to the Docker socket.
 * The orchestrator spawns, lists, monitors, and terminates sibling browser containers (named `browserpilot-session-<SESSION_ID>`) dynamically on demand.
 
-### D. Future Streaming Path
-* **WebRTC/WebSocket Tunneling:** The dynamic container allocation will assign a unique websocket port to each session container.
-* **Backend Proxying:** The orchestrator will dynamically proxy WS connections from `/api/session/:id/stream` directly to the corresponding sibling container's WebSocket server port on the `browserpilot-net` network.
-* **Canvas Updates:** The frontend client will establish connection to the orchestrator proxy, receiving real-time screen frame feeds and sending input commands back.
+### D. Future Evolution
+* **Control Input Injection:** Integrate client-side interaction events (mouse moves, clicks, keystrokes) captured on the frontend viewport and tunnel them via the control plane to the backend, injecting them into the Chromium instance via Playwright APIs.
+* **WebRTC Transition:** Migrate transport from Socket.io to WebRTC for sub-frame frame rendering and higher FPS at reduced bandwidth.
+
+---
+
+## 10. Real-Time Viewport Streaming (Milestone 5)
+
+Milestone 5 implements real-time visual streaming of the containerized browser viewport to the React dashboard. It relies on frame generation inside the container, HTTP frame ingestion on the backend, a central Event-based Frame Service, and client multiplexing via Socket.io.
+
+### A. Frame Pipeline
+
+```
+[Playwright Chromium] (Continuous Loop)
+         │
+         ├─► [Capture JPEG Page Screenshot]
+         ▼
+[Temp Screenshot Path: /screenshots/session.jpg] (Cleaned on stop)
+         │
+         ├─► [Read to Buffer & Convert to Base64]
+         ▼
+[HTTP POST /api/browser/:id/frame] (Internal Network: browserpilot-net)
+         │
+         ▼
+[Express Controller Ingests Frame]
+         │
+         ▼
+[FrameService Emits event: frame:sessionID]
+         │
+         ▼
+[SocketServer Room mapping] (Room: session:sessionID)
+         │
+         ▼
+[Socket.io frame:update emitted to Web Clients]
+         │
+         ▼
+[React Render to <img> tag] (data:image/jpeg;base64)
+```
+
+### B. Socket Flow & Session Rooms
+* **Room Multiplexing:** Clients join a session-specific room using the event `session:join` containing `sessionId`.
+* **State Subscriptions:** Sockets are dynamically registered inside the `FrameService` listeners on room join, and safely unregistered on disconnect or room exit. This ensures zero cross-talk between user sessions.
+* **Connection Health:** Handled gracefully. If a client disconnects, Socket.io unsubscribes listeners from the internal event bus to prevent memory accumulation.
+
+### C. Performance & Resource Considerations
+* **Frame Throttling:** Throttled to 100ms interval loops inside `browser.js` (yielding 5–10 FPS). This rate preserves container CPU and memory resources while maintaining visual responsiveness.
+* **Serialization Overhead:** JPEGs are compressed using adjustable quality limits (defaulting to quality 60) to decrease payload sizes down to ~35-50KB per frame, keeping socket bandwidth requirements low.
+* **Temp File Pruning:** A single persistent session-aware filename (`/screenshots/${SESSION_ID}.jpg`) is overwritten continuously inside the container rather than generating new files, bypassing inode exhaustion risks. The file is deleted on graceful exit.

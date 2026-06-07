@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { BrowserService } from "../browser/browserService";
+import { frameService } from "../frames/frameService";
 
 const browserService = new BrowserService();
 
@@ -87,5 +88,31 @@ export const stopSession = async (req: Request, res: Response): Promise<void> =>
     } else {
       res.status(500).json({ error: error.message });
     }
+  }
+};
+
+/**
+ * POST /api/browser/:sessionId/frame
+ * Receives base64 frame updates from browser agent container
+ */
+export const receiveFrame = (req: Request, res: Response): void => {
+  try {
+    const { sessionId } = req.params;
+    const { image, timestamp } = req.body;
+
+    if (!image) {
+      res.status(400).json({ error: "image is required" });
+      return;
+    }
+
+    frameService.emitFrameUpdate({
+      sessionId,
+      timestamp: timestamp || Date.now(),
+      image
+    });
+
+    res.status(200).json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 };
