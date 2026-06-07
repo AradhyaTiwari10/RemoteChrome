@@ -13,6 +13,9 @@ services:
       - PORT=5001
       - NODE_ENV=production
     restart: unless-stopped
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - browserpilot-net
     healthcheck:

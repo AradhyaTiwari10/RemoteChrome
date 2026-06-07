@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import loggerMiddleware from "./middleware/logger";
 import errorHandlerMiddleware from "./middleware/errorHandler";
 import healthRouter from "./routes/health";
+import browserRouter from "./routes/browser";
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +24,7 @@ app.use(loggerMiddleware);
 
 // Route Handlers
 app.use(healthRouter);
+app.use("/api", browserRouter);
 
 // Middleware: Global Error Handling Structure
 app.use(errorHandlerMiddleware);

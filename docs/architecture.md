@@ -180,3 +180,58 @@ While this milestone uses a short-lived, headless container, future iterations w
 * **Active Streaming:** A websocket or WebRTC streamer agent will run inside the container to continuously capture frame buffer updates from display `:99` and stream them as compressed video feeds to the Next.js frontend.
 * **Control plane:** A websocket control socket will accept click/keystroke commands from the client and inject them into Chromium using coordinates.
 * **Stateful management:** The Express orchestrator will dynamically manage the lifecycle of these containers (booting, port assignment, health checks, teardowns) on demand.
+
+---
+
+## 9. Persistent Session Orchestration (Milestone 4)
+
+Milestone 4 transitions the architecture from batch container tasks to persistent, dynamically managed browser sessions. The Express backend orchestrator controls the lifecycle of running Chromium sibling containers using Dockerode.
+
+### A. Session Lifecycle
+
+```
+[Client POST /api/browser/start]
+                │
+                ▼
+[Orchestrator generates Session ID]
+                │
+                ▼
+[Dockerode provisions browser container]
+  - Env: TARGET_URL, SESSION_ID
+  - Joined to browserpilot-net
+                │
+                ├────────────────────────┐
+                ▼ (Success)              ▼ (Failure)
+    [Mark Session ACTIVE]       [Mark Session FAILED]
+                │                        │
+                │                        ▼
+                │               [Prune Container]
+                ▼
+[Active Keep-Alive Loop in Container]
+                │
+                ▼
+[Client POST /api/browser/:id/stop]
+                │
+                ▼
+[Dockerode stops & removes container]
+                │
+                ▼
+[Mark Session STOPPED]
+```
+
+### B. Browser Container Lifecycle
+Unlike Milestone 3 where the container exited after a screenshot, the container in Milestone 4:
+1. **Initializes:** Reads `SESSION_ID` and `TARGET_URL` from the environment.
+2. **Launches Browser:** Starts Chromium and navigates to the specified URL.
+3. **Persists:** Runs an active wait loop (`while (keepAlive)`) keeping the browser process open.
+4. **Shuts Down:** Listens for `SIGTERM` or `SIGINT` signals, closes the browser engine cleanly, and exits.
+
+### C. Container Ownership Model
+* **The Express backend** binds to `/var/run/docker.sock` of the host system.
+* The orchestrator container is run as `user: root` to possess sufficient file permission privileges to write to the Docker socket.
+* The orchestrator spawns, lists, monitors, and terminates sibling browser containers (named `browserpilot-session-<SESSION_ID>`) dynamically on demand.
+
+### D. Future Streaming Path
+* **WebRTC/WebSocket Tunneling:** The dynamic container allocation will assign a unique websocket port to each session container.
+* **Backend Proxying:** The orchestrator will dynamically proxy WS connections from `/api/session/:id/stream` directly to the corresponding sibling container's WebSocket server port on the `browserpilot-net` network.
+* **Canvas Updates:** The frontend client will establish connection to the orchestrator proxy, receiving real-time screen frame feeds and sending input commands back.
