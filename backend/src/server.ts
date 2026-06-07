@@ -22,7 +22,10 @@ const NODE_ENV = process.env.NODE_ENV || "development";
 app.use(cors());
 
 // Middleware: Parse JSON payloads
-app.use(express.json());
+// Frame payloads are base64-encoded JPEGs (≈67–467 KB after encoding).
+// The default body-parser limit is 100 KB — far too small. Raised to 10 MB.
+// Note: this endpoint is container-internal only (browserpilot-net bridge), not public-facing.
+app.use(express.json({ limit: "10mb" }));
 
 // Custom Logger Middleware
 app.use(loggerMiddleware);

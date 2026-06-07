@@ -6,7 +6,10 @@ const TARGET_URL = process.env.TARGET_URL;
 const SESSION_ID = process.env.SESSION_ID;
 const BACKEND_URL = process.env.BACKEND_URL || "http://backend:5001";
 const FRAME_RATE_MS = parseInt(process.env.FRAME_RATE_MS || "100", 10);
-const JPEG_QUALITY = parseInt(process.env.JPEG_QUALITY || "60", 10);
+// Quality 50 keeps visual clarity adequate for remote viewing while reducing
+// raw JPEG size from ~150-350KB → ~50-120KB, keeping base64 payloads well
+// under the 10MB Express body limit raised in server.ts.
+const JPEG_QUALITY = parseInt(process.env.JPEG_QUALITY || "50", 10);
 
 if (!SESSION_ID) {
   console.error(JSON.stringify({ level: "error", message: "SESSION_ID environment variable is required" }));
@@ -69,7 +72,10 @@ setInterval(() => {
   });
 
   const context = await browser.newContext({
-    viewport: { width: 1920, height: 1080 },
+    // 1280×720 reduces pixel count by 55.6% vs 1920×1080, cutting JPEG size
+    // proportionally. Coordinate scaling (scaleX/Y) is computed dynamically
+    // in the frontend from getBoundingClientRect() so click accuracy is unaffected.
+    viewport: { width: 1280, height: 720 },
     // Spoof a real browser user-agent to reduce bot-detection hits
     userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
   });
@@ -341,6 +347,16 @@ setInterval(() => {
           }));
         }
       });
+
+      // Log payload size before upload for observability
+      const payloadSizeKB = Math.round(Buffer.byteLength(payload) / 1024);
+      if (payloadSizeKB > 200) {
+        console.warn(JSON.stringify({
+          level: "warn",
+          message: "[Browser] Large frame payload — consider further quality reduction",
+          payloadSizeKB
+        }));
+      }
 
       req.write(payload);
       req.end();
