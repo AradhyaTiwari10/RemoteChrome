@@ -4,12 +4,12 @@ This directory is reserved for building and maintaining the Docker image running
 
 ---
 
-## 📌 Purpose of the Browser Container
+##  Purpose of the Browser Container
 To run a clean, stateless instance of Chromium inside a Linux container. This completely isolates the host machine from security vulnerabilities, file system access, or network exposure caused by client web browsing.
 
 ---
 
-## ⚙️ Future Runtimes
+## ️ Future Runtimes
 
 ### 1. Chromium Runtime
 * **Display Server (Xvfb):** Since containers run headlessly, we will run X Virtual Framebuffer (Xvfb) inside the container. Chromium will launch target pages against display `:99`.
@@ -22,7 +22,7 @@ To run a clean, stateless instance of Chromium inside a Linux container. This co
 
 ---
 
-## 📡 Communication Model
+##  Communication Model
 
 ```
                                               +-----------------------------------+

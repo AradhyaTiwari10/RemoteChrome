@@ -107,11 +107,11 @@ Frontend Client  ──>  Backend Orchestrator  ──>  Browser Sandbox Contain
 This multi-tier approach separates client-side visualization, state orchestration, container execution, and raw browser processes.
 
 ### Advantages
-1. **Separation of Concerns:** 
+1. **Separation of Concerns:**
    * The **Frontend** does not know how containers are provisioned; it only handles rendering and event capture.
    * The **Backend Orchestrator** manages lifecycle scheduling but does not process pixel values or compression codecs.
    * The **Browser Sandbox Container** runs isolated and handles input injection directly in its environment.
-2. **Scalability:** 
+2. **Scalability:**
    * As concurrent user counts grow, the Backend Orchestrator can balance container creation across multiple docker hosts/nodes (e.g. Docker Swarm or Kubernetes clusters) without changing frontend or streaming logic.
 3. **Multi-Session Support:**
    * Because each browser runs inside its own Docker container with strict network ports, sandboxing multiple instances for a single user or multiple users is natively supported.
@@ -124,7 +124,7 @@ This multi-tier approach separates client-side visualization, state orchestratio
 
 ### Alternative A: Monolithic Server with Embedded Chrome
 * *Description:* Running a single Node.js server that spawns Chromium directly using Puppeteer/Playwright processes on the host.
-* *Why Rejected:* 
+* *Why Rejected:*
   * **Zero Security Sandbox:** If a website executes a sandbox escape vulnerability, the attacker gets immediate access to the host machine running the Node server.
   * **Resource Contention:** Multiple active Chromium processes on a single host make it difficult to set hard memory/CPU caps per session, risking host crashes.
   * **No Multi-Tenancy:** Harder to manage cookie/session cleaning reliably at process level compared to complete container isolation.

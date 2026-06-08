@@ -1,21 +1,21 @@
-# BrowserPilot 🚀
+# BrowserPilot
 
 BrowserPilot is a local browser virtualization platform that enables users to remotely control a Chromium browser running inside an isolated, containerized environment directly from a web dashboard.
 
 ---
 
-## 📌 Project Overview
+##  Project Overview
 BrowserPilot runs a sandboxed Chromium instance inside a Docker container, captures its visual output, streams it in real-time to the frontend UI, and forwards user actions (mouse clicks, keyboard strokes, touch gestures) back to the browser via a WebSocket control plane.
 
 ### Key Features
-* 📺 **Real-time Streaming:** Low-latency visual streaming of the containerized browser viewport.
-* ⌨️ **Interactive Controls:** Mouse, keyboard, and touch event forwarding.
-* 🛡️ **Complete Isolation:** Browsers run in separate Docker environments, ensuring local machine security.
-* 🤖 **Automation Ready:** Hooked up with Playwright for programmatic task execution.
+*  **Real-time Streaming:** Low-latency visual streaming of the containerized browser viewport.
+* ️ **Interactive Controls:** Mouse, keyboard, and touch event forwarding.
+* ️ **Complete Isolation:** Browsers run in separate Docker environments, ensuring local machine security.
+*  **Automation Ready:** Hooked up with Playwright for programmatic task execution.
 
 ---
 
-## 🏗️ Architectural Overview
+## ️ Architectural Overview
 The system is designed using a decoupled service architecture:
 
 ```mermaid
@@ -44,14 +44,14 @@ graph TD
 
 ---
 
-## 🛠️ Tech Stack
+## ️ Tech Stack
 * **Frontend:** Next.js 15 (App Router), React, Tailwind CSS, TypeScript
 * **Backend:** Node.js, Express, TypeScript, ts-node-dev
 * **Infrastructure:** Docker, Docker Compose, Chromium
 
 ---
 
-## 📈 Milestones & Roadmap
+##  Milestones & Roadmap
 
 * **Epic 1 — Foundation** *(Current)*: Base workspace setup, Express boilerplate, Next.js scaffolding, dev script definition.
 * **Epic 2 — Docker**: Containerization of Frontend and Backend services, development multi-stage Dockerfiles.
@@ -63,7 +63,7 @@ graph TD
 
 ---
 
-## 🚀 Development Setup
+##  Development Setup
 
 ### Prerequisites
 * Node.js (v18+)
@@ -98,7 +98,7 @@ graph TD
 
 ---
 
-## 🐳 Docker Orchestration & Infrastructure
+##  Docker Orchestration & Infrastructure
 
 We use a production-grade Docker architecture to containerize, isolate, and orchestrate the BrowserPilot platform services.
 
@@ -144,7 +144,7 @@ graph LR
 
 ---
 
-## 🚀 Developer Command Matrix
+##  Developer Command Matrix
 
 We orchestrate local environment execution using Docker Compose. Use the following commands for the lifecycle management:
 
@@ -163,7 +163,7 @@ We orchestrate local environment execution using Docker Compose. Use the followi
 
 ---
 
-## 🔍 Troubleshooting Guide
+##  Troubleshooting Guide
 
 #### 1. Port Collision Error
 * **Symptom:** `port is already allocated` or `address already in use`.
@@ -184,5 +184,5 @@ We orchestrate local environment execution using Docker Compose. Use the followi
 
 ---
 
-## 📜 License
+##  License
 MIT License.
